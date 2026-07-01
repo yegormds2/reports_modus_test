@@ -417,6 +417,33 @@
     .hero { flex-direction: column; align-items: flex-start; }
     .hero-meta { text-align: left; }
   }
+
+  @media (max-width: 765px) {
+    .bar-name {
+      max-width: 100px;
+      cursor: pointer;
+    }
+  }
+
+  /* Всплывающее окошко с полным текстом bar-name (мобильная версия) */
+  .bar-name-popup {
+    position: fixed;
+    z-index: 9999;
+    max-width: 78vw;
+    background: var(--bg-panel-raised);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    padding: 8px 12px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    word-break: break-word;
+    white-space: normal;
+    cursor: pointer;
+    display: none;
+  }
+  .bar-name-popup.show { display: block; }
 </style>
 </head>
 <body>
@@ -945,6 +972,81 @@ function renderReturnsList(rows) {
     </div>
   `;
 }
+
+// Всплывающее окошко с полным названием для .bar-name на мобильных экранах (<=765px)
+(function() {
+  const MOBILE_BREAKPOINT = 765;
+  let popupEl = null;
+  let activeTarget = null;
+
+  function getPopup() {
+    if (!popupEl) {
+      popupEl = document.createElement('div');
+      popupEl.className = 'bar-name-popup';
+      document.body.appendChild(popupEl);
+      popupEl.addEventListener('click', hidePopup);
+    }
+    return popupEl;
+  }
+
+  function hidePopup() {
+    if (popupEl) {
+      popupEl.classList.remove('show');
+    }
+    activeTarget = null;
+  }
+
+  function showPopupFor(target) {
+    const popup = getPopup();
+    popup.textContent = target.getAttribute('title') || target.textContent;
+
+    const rect = target.getBoundingClientRect();
+    popup.classList.add('show');
+
+    // Временно показываем, чтобы измерить размеры
+    const popupRect = popup.getBoundingClientRect();
+    let top = rect.bottom + 6;
+    let left = rect.left;
+
+    // Не даём окошку выйти за правый край экрана
+    const maxLeft = window.innerWidth - popupRect.width - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+
+    // Если окошко не помещается снизу, показываем сверху
+    if (top + popupRect.height > window.innerHeight - 8) {
+      top = rect.top - popupRect.height - 6;
+      if (top < 8) top = 8;
+    }
+
+    popup.style.top = top + 'px';
+    popup.style.left = left + 'px';
+    activeTarget = target;
+  }
+
+  document.addEventListener('click', function(e) {
+    if (window.innerWidth > MOBILE_BREAKPOINT) return;
+
+    const nameEl = e.target.closest('.bar-name');
+    if (nameEl) {
+      e.stopPropagation();
+      if (activeTarget === nameEl && popupEl && popupEl.classList.contains('show')) {
+        hidePopup();
+      } else {
+        showPopupFor(nameEl);
+      }
+      return;
+    }
+
+    // Клик вне bar-name и вне самого попапа — закрыть попап
+    if (popupEl && !popupEl.contains(e.target)) {
+      hidePopup();
+    }
+  });
+
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > MOBILE_BREAKPOINT) hidePopup();
+  });
+})();
 
 function escapeHtml(str) {
   return String(str)
