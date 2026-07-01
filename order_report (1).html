@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Отчёт по заказам</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #15140f;
+    --bg-panel: #1c1a14;
+    --bg-panel-raised: #232017;
+    --line: #38342a;
+    --line-soft: #28251d;
+    --ink: #ece6d6;
+    --ink-dim: #a39c87;
+    --ink-faint: #6e6857;
+    --rust: #c2693a;
+    --rust-soft: #8a4226;
+    --olive: #8f9b6e;
+    --gold: #c9a456;
+    --red: #b24d3e;
+    --mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  }
+
+  @font-face {
+    font-family: 'Fraunces';
+    src: local('Georgia');
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  body {
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.012) 40px);
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 28px 120px;
+  }
+
+  /* ---- Header / Hero ---- */
+  .hero {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .hero-tag {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  h1.title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-size: 38px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .hero-meta {
+    text-align: right;
+    color: var(--ink-faint);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .hero-meta b { color: var(--ink-dim); font-weight: 500; }
+
+  /* ---- Upload zone ---- */
+  .dropzone {
+    border: 1px dashed var(--line);
+    border-radius: 2px;
+    padding: 46px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    background: var(--bg-panel);
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--rust);
+    background: var(--bg-panel-raised);
+  }
+  .dropzone input { display:none; }
+  .dz-label {
+    font-family: Georgia, serif;
+    font-size: 19px;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .dz-sub {
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+  .dz-sub b { color: var(--rust); }
+
+  .file-row {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: var(--bg-panel-raised);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+  .file-row.show { display: flex; }
+  .file-row .name { color: var(--gold); }
+  .file-row button {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .file-row button:hover { color: var(--red); border-color: var(--red); }
+
+  #error-box {
+    display: none;
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: rgba(178,77,62,0.08);
+    border: 1px solid var(--red);
+    color: #e2a596;
+    font-size: 12.5px;
+  }
+  #error-box.show { display: block; }
+
+  /* ---- Report sections ---- */
+  #report { display: none; margin-top: 44px; }
+  #report.show { display: block; }
+
+  .section {
+    margin-bottom: 52px;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--line-soft);
+    padding-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .section-num {
+    font-size: 11px;
+    color: var(--rust);
+    letter-spacing: 0.08em;
+  }
+  .section-head h2 {
+    font-family: Georgia, serif;
+    font-weight: 400;
+    font-size: 21px;
+    margin: 0;
+    color: var(--ink);
+  }
+  .section-note {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ink-faint);
+  }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+  .stat-card {
+    background: var(--bg-panel);
+    padding: 22px 20px;
+  }
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: Georgia, serif;
+    font-size: 28px;
+    color: var(--ink);
+  }
+  .stat-value .unit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--ink-faint);
+    margin-left: 4px;
+  }
+  .stat-sub {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--olive);
+  }
+  .stat-sub.muted { color: var(--ink-faint); }
+
+  /* Toggle: all vs net */
+  .scope-toggle {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .scope-toggle button {
+    background: var(--bg-panel);
+    border: none;
+    color: var(--ink-faint);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-right: 1px solid var(--line);
+  }
+  .scope-toggle button:last-child { border-right: none; }
+  .scope-toggle button.active {
+    background: var(--rust-soft);
+    color: #fff0e6;
+  }
+
+  /* Table-like bar list (signature element) */
+  .bar-list { display: flex; flex-direction: column; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 100px 70px;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line-soft);
+    position: relative;
+  }
+  .bar-row:last-child { border-bottom: none; }
+  .bar-rank {
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+  .bar-name-wrap {
+    position: relative;
+    height: 26px;
+    display: flex;
+    align-items: center;
+  }
+  .bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, rgba(194,105,58,0.22), rgba(194,105,58,0.05));
+    border-left: 2px solid var(--rust);
+    z-index: 0;
+  }
+  .bar-name {
+    position: relative;
+    z-index: 1;
+    padding-left: 10px;
+    font-size: 12.5px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-value {
+    text-align: right;
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .bar-pct {
+    text-align: right;
+    font-size: 12px;
+    color: var(--gold);
+  }
+
+  .bar-list.money .bar-fill {
+    background: linear-gradient(90deg, rgba(143,155,110,0.22), rgba(143,155,110,0.05));
+    border-left: 2px solid var(--olive);
+  }
+  .bar-list.money .bar-pct { color: var(--olive); }
+
+  .bar-list.returns .bar-fill {
+    background: linear-gradient(90deg, rgba(178,77,62,0.24), rgba(178,77,62,0.05));
+    border-left: 2px solid var(--red);
+  }
+  .bar-list.returns .bar-pct { color: var(--red); }
+
+  .empty-note {
+    color: var(--ink-faint);
+    font-size: 12.5px;
+    padding: 18px 0;
+    font-style: italic;
+  }
+
+  .bar-header {
+    display: grid;
+    grid-template-columns: 28px 1fr 100px 70px;
+    gap: 14px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 2px;
+  }
+  .bar-header span:nth-child(3), .bar-header span:nth-child(4) { text-align: right; }
+
+  /* Status table */
+  .status-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .status-table th {
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .status-table th.num, .status-table td.num { text-align: right; }
+  .status-table td {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .status-table tr:last-child td { border-bottom: none; }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .status-name { color: var(--ink); }
+  .status-table .pct-cell {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  }
+  .pct-track {
+    width: 90px; height: 5px;
+    background: var(--line-soft);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .pct-fill { height: 100%; background: var(--rust); border-radius: 3px; }
+
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: -8px;
+    margin-bottom: 28px;
+  }
+  .btn {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 9px 16px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .btn:hover { border-color: var(--rust); color: var(--rust); }
+  .btn.reset:hover { border-color: var(--red); color: var(--red); }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink-faint);
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+/*
+  .bar-row--threshold {
+  outline: 2px solid #ffc107;
+  border-radius: 4px;
+  box-shadow: 0 2px 0 0 red;
+  } */
+
+  .bar-row--threshold {
+  box-shadow: 0 2px 0 0 rgb(246, 254, 0);
+  }
+
+
+  @media (max-width: 720px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .bar-row, .bar-header { grid-template-columns: 22px 1fr 80px 55px; gap: 8px; }
+    .hero { flex-direction: column; align-items: flex-start; }
+    .hero-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <span class="hero-tag">Отчёт по источнику · сводка по заказам</span>
+      <h1 class="title">Журнал заказов</h1>
+    </div>
+    <div class="hero-meta" id="hero-meta">Загрузите файл, чтобы увидеть сводку</div>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="file-input" accept=".xls,.xlsx,.csv">
+    <div class="dz-label">Перетащите файл отчёта сюда или нажмите, чтобы выбрать</div>
+    <div class="dz-sub">Принимает <b>.xls</b> и <b>.xlsx</b> с колонками: НИК, ЗАКАЗ, ФИО, НУМЕНКЛАТУРА, КАТАЛОГ, ЦВЕТ, РАЗМЕР, КОЛ-ВО, СТАТУС, СУММА, ТЕЛЕФОН</div>
+  </div>
+
+  <div class="file-row" id="file-row">
+    <span>Файл: <span class="name" id="file-name"></span></span>
+    <button id="clear-btn">Загрузить другой</button>
+  </div>
+
+  <div id="error-box"></div>
+
+  <div id="report">
+
+    <div class="toolbar">
+      <button class="btn" id="print-btn">Печать / PDF</button>
+      <button class="btn reset" id="reset-btn">Очистить</button>
+    </div>
+
+    <!-- Summary -->
+    <div class="section" id="section-summary">
+      <div class="section-head">
+        <span class="section-num">00</span>
+        <h2>Общая информация</h2>
+      </div>
+      <div class="summary-grid" id="summary-grid"></div>
+    </div>
+
+    <!-- 1. Units -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-num">01</span>
+        <h2>Товары по количеству заказанного</h2>
+        <span class="section-note">в штуках, доля от общего количества единиц</span>
+      </div>
+      <div class="bar-header">
+        <span>#</span><span>Товар</span><span>Кол-во</span><span>Доля</span>
+      </div>
+      <div class="bar-list" id="list-units"></div>
+    </div>
+
+    <!-- 2. Revenue -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-num">02</span>
+        <h2>Товары по выручке</h2>
+        <span class="section-note">в гривнах, доля от общей суммы отчёта</span>
+      </div>
+      <div class="scope-toggle" data-group="revenue">
+        <button class="active" data-scope="all">Все заказы</button>
+        <button data-scope="net">Без отмен / возвратов</button>
+      </div>
+      <div class="bar-header">
+        <span>#</span><span>Товар</span><span>Сумма</span><span>Доля</span>
+      </div>
+      <div class="bar-list money" id="list-revenue"></div>
+    </div>
+
+    <!-- 3+4. Status -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-num">03–04</span>
+        <h2>Статусы заказов</h2>
+        <span class="section-note">количество и доля каждого статуса, по убыванию</span>
+      </div>
+      <table class="status-table">
+        <thead>
+          <tr>
+            <th>Статус</th>
+            <th class="num">Заказов</th>
+            <th class="num" style="width:160px;">Доля</th>
+          </tr>
+        </thead>
+        <tbody id="status-body"></tbody>
+      </table>
+    </div>
+
+    <!-- 5. Returns -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-num">05</span>
+        <h2>Возвраты по товарам</h2>
+        <span class="section-note">«Возврат» и «Отказано от посылки» · в штуках, доля от общего числа возвращённых единиц</span>
+        <span class="section-note" id="returns-meta" style="margin-left:0;"></span>
+      </div>
+      <div id="returns-wrap"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>Все вычисления выполняются в браузере — данные не отправляются на сервер</span>
+    <span id="footer-count"></span>
+  </footer>
+
+</div>
+
+<script>
+const COLUMN_ALIASES = {
+  nick: ['ник'],
+  order: ['заказ'],
+  fio: ['фио'],
+  nomenclature: ['нуменклатура', 'номенклатура'],
+  catalog: ['каталог'],
+  color: ['цвет'],
+  size: ['размер'],
+  qty: ['кол-во', 'кол во', 'количество'],
+  status: ['статус'],
+  sum: ['сумма'],
+  phone: ['телефон']
+};
+
+const CANCEL_STATUSES = ['отменен', 'отменён', 'отказано от посылки', 'возврат заказа после отправки', 'возврат'];
+
+const RETURN_STATUSES = ['возврат', 'отказано от посылки'];
+
+const STATUS_COLORS = ['#c2693a','#8f9b6e','#c9a456','#7a8fa3','#b24d3e','#9b7fb0','#6e9b8a','#a3a39c','#d4944f','#5f8fb0','#8a6e4a','#9b5f5f'];
+
+let workbookRows = null;
+
+const $ = (sel) => document.querySelector(sel);
+const fmtInt = (n) => Math.round(n).toLocaleString('ru-RU');
+const fmtMoney = (n) => Math.round(n).toLocaleString('ru-RU') + ' грн.';
+const fmtPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+
+function normalizeHeader(h) {
+  return String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function findHeaderRow(matrix) {
+  for (let r = 0; r < Math.min(matrix.length, 15); r++) {
+    const row = matrix[r].map(normalizeHeader);
+    const hasNick = row.some(c => c.includes('ник'));
+    const hasOrder = row.some(c => c === 'заказ');
+    const hasStatus = row.some(c => c.includes('статус'));
+    if (hasNick && hasOrder && hasStatus) return r;
+  }
+  return -1;
+}
+
+function mapColumns(headerRow) {
+  const norm = headerRow.map(normalizeHeader);
+  const map = {};
+  for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
+    let idx = -1;
+    for (const alias of aliases) {
+      idx = norm.findIndex(c => c === alias || c.includes(alias));
+      if (idx !== -1) break;
+    }
+    map[key] = idx;
+  }
+  return map;
+}
+
+function parseQty(val) {
+  if (val == null || val === '') return 0;
+  const s = String(val).replace(/[^\d.,\-]/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseSum(val) {
+  if (val == null || val === '') return 0;
+  const s = String(val).replace(/[^\d.,\-]/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function isCancelStatus(status) {
+  const s = String(status || '').trim().toLowerCase();
+  if (s.includes('не подлежит')) return false;
+  return CANCEL_STATUSES.some(c => s.includes(c));
+}
+
+function isReturnStatus(status) {
+  const s = String(status || '').trim().toLowerCase();
+  if (s.includes('не подлежит')) return false;
+  return RETURN_STATUSES.some(c => s.includes(c));
+}
+
+function parseWorkbook(matrix) {
+  const headerIdx = findHeaderRow(matrix);
+  if (headerIdx === -1) {
+    throw new Error('Не удалось найти строку заголовков. Ожидаются колонки: НИК, ЗАКАЗ, СТАТУС и т.д.');
+  }
+  const colMap = mapColumns(matrix[headerIdx]);
+  const required = ['order', 'nomenclature', 'qty', 'status', 'sum'];
+  const missing = required.filter(k => colMap[k] === -1);
+  if (missing.length) {
+    throw new Error('В файле не найдены обязательные колонки: ' + missing.join(', '));
+  }
+
+  const rows = [];
+  for (let r = headerIdx + 1; r < matrix.length; r++) {
+    const row = matrix[r];
+    if (!row) continue;
+    const orderVal = row[colMap.order];
+    const nomVal = row[colMap.nomenclature];
+    if ((orderVal === undefined || orderVal === '' || orderVal === null) &&
+        (nomVal === undefined || nomVal === '' || nomVal === null)) continue;
+
+    rows.push({
+      nick: colMap.nick !== -1 ? row[colMap.nick] : '',
+      order: orderVal,
+      fio: colMap.fio !== -1 ? row[colMap.fio] : '',
+      nomenclature: String(nomVal || '').trim(),
+      catalog: colMap.catalog !== -1 ? row[colMap.catalog] : '',
+      color: colMap.color !== -1 ? row[colMap.color] : '',
+      size: colMap.size !== -1 ? row[colMap.size] : '',
+      qty: parseQty(row[colMap.qty]),
+      status: String(row[colMap.status] || '').trim(),
+      sum: parseSum(row[colMap.sum]),
+      phone: colMap.phone !== -1 ? row[colMap.phone] : ''
+    });
+  }
+
+  if (rows.length === 0) {
+    throw new Error('В файле не найдено ни одной строки с данными.');
+  }
+
+  return rows;
+}
+
+function aggregate(rows, scope) {
+  const filtered = scope === 'net' ? rows.filter(r => !isCancelStatus(r.status)) : rows;
+
+  const byUnits = {};
+  const byRevenue = {};
+  let totalUnits = 0;
+  let totalRevenue = 0;
+
+  for (const r of filtered) {
+    if (!r.nomenclature) continue;
+    byUnits[r.nomenclature] = (byUnits[r.nomenclature] || 0) + r.qty;
+    byRevenue[r.nomenclature] = (byRevenue[r.nomenclature] || 0) + r.sum;
+    totalUnits += r.qty;
+    totalRevenue += r.sum;
+  }
+
+  const unitsList = Object.entries(byUnits)
+    .map(([name, qty]) => ({ name, qty, pct: totalUnits ? (qty / totalUnits * 100) : 0 }))
+    .sort((a, b) => b.qty - a.qty);
+
+  const revenueList = Object.entries(byRevenue)
+    .map(([name, sum]) => ({ name, sum, pct: totalRevenue ? (sum / totalRevenue * 100) : 0 }))
+    .sort((a, b) => b.sum - a.sum);
+
+  return { unitsList, revenueList, totalUnits, totalRevenue, rowCount: filtered.length };
+}
+
+function aggregateStatuses(rows) {
+  const counts = {};
+  for (const r of rows) {
+    const s = r.status || '(без статуса)';
+    counts[s] = (counts[s] || 0) + 1;
+  }
+  const total = rows.length;
+  return Object.entries(counts)
+    .map(([status, count]) => ({ status, count, pct: total ? (count / total * 100) : 0 }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function aggregateReturns(rows) {
+  const returnedRows = rows.filter(r => isReturnStatus(r.status));
+  const byUnits = {};
+  let totalReturnedUnits = 0;
+  for (const r of returnedRows) {
+    if (!r.nomenclature) continue;
+    byUnits[r.nomenclature] = (byUnits[r.nomenclature] || 0) + r.qty;
+    totalReturnedUnits += r.qty;
+  }
+  const list = Object.entries(byUnits)
+    .map(([name, qty]) => ({ name, qty, pct: totalReturnedUnits ? (qty / totalReturnedUnits * 100) : 0 }))
+    .sort((a, b) => b.qty - a.qty);
+  return { list, totalReturnedUnits, returnedOrderCount: new Set(returnedRows.map(r => r.order)).size };
+}
+
+function getOrderStats(rows) {
+  const uniqueOrders = new Set(rows.map(r => r.order));
+  return { orderCount: uniqueOrders.size, lineCount: rows.length };
+}
+
+function renderSummary(rows) {
+  const allAgg = aggregate(rows, 'all');
+  const netAgg = aggregate(rows, 'net');
+  const orderStatsAll = getOrderStats(rows);
+  const orderStatsNet = getOrderStats(rows.filter(r => !isCancelStatus(r.status)));
+
+  const cards = [
+    {
+      label: 'Заказов всего',
+      value: fmtInt(orderStatsAll.orderCount),
+      unit: 'шт',
+      sub: orderStatsAll.lineCount + ' позиций в строках'
+    },
+    {
+      label: 'Сумма заказов, все',
+      value: fmtMoney(allAgg.totalRevenue),
+      sub: fmtInt(allAgg.totalUnits) + ' единиц товара'
+    },
+    {
+      label: 'Заказов без отмен/возвратов',
+      value: fmtInt(orderStatsNet.orderCount),
+      unit: 'шт',
+      sub: orderStatsNet.lineCount + ' позиций в строках',
+      cls: 'muted'
+    },
+    {
+      label: 'Сумма без отмен/возвратов',
+      value: fmtMoney(netAgg.totalRevenue),
+      sub: fmtInt(netAgg.totalUnits) + ' единиц товара',
+      cls: 'muted'
+    }
+  ];
+
+  $('#summary-grid').innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.value}${c.unit ? `<span class="unit">${c.unit}</span>` : ''}</div>
+      <div class="stat-sub ${c.cls || ''}">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+// 1
+
+// function renderUnitsList(rows) {
+//   const agg = aggregate(rows, 'all');
+//   const total = agg.unitsList[0]?.qty || 1;
+
+//   let runningPct = 0;
+//   let thresholdReached = false;
+
+
+//   $('#list-units').innerHTML = agg.unitsList.map((item, i) => `
+//     <div class="bar-row">
+//       <div class="bar-rank">${i + 1}</div>
+//       <div class="bar-name-wrap">
+//         <div class="bar-fill" style="width:${(item.qty / total * 100).toFixed(1)}%"></div>
+//         <div class="bar-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+//       </div>
+//       <div class="bar-value">${fmtInt(item.qty)} шт</div>
+//       <div class="bar-pct">${fmtPct(item.pct)}</div>
+//     </div>
+//   `).join('');
+//   console.log('Финальная накопленная сумма:', runningPct);
+// }
+
+
+
+// 2
+
+// function renderUnitsList(rows) {
+//   const agg = aggregate(rows, 'all');
+
+//   const total = agg.unitsList.reduce((sum, item) => sum + item.qty, 0) || 1;
+
+//   // 🔥 СУММА ПРОЦЕНТОВ
+//   const totalPct = agg.unitsList.reduce((sum, item) => sum + (item.pct || 0), 0);
+
+//   console.log('Сумма процентов:', totalPct);
+
+//   $('#list-units').innerHTML = agg.unitsList.map((item, i) => `
+//     <div class="bar-row">
+//       <div class="bar-rank">${i + 1}</div>
+//       <div class="bar-name-wrap">
+//         <div class="bar-fill" style="width:${(item.qty / total * 100).toFixed(1)}%"></div>
+//         <div class="bar-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+//       </div>
+//       <div class="bar-value">${fmtInt(item.qty)} шт</div>
+//       <div class="bar-pct">${fmtPct(item.pct)}</div>
+//     </div>
+//   `).join('');
+// }
+
+
+// 3
+
+// function renderUnitsList(rows) {
+//   const agg = aggregate(rows, 'all');
+
+//   const total = agg.unitsList.reduce((sum, item) => sum + item.qty, 0) || 1;
+
+//   // 🔥 СУММА ШТУК
+//   const totalQty = agg.unitsList.reduce((sum, item) => sum + item.qty, 0);
+
+//   // 🔥 СУММА ПРОЦЕНТОВ
+//   const totalPct = agg.unitsList.reduce((sum, item) => sum + (item.pct || 0), 0);
+
+//   console.log('Сумма штук:', totalQty);
+//   console.log('Сумма процентов:', totalPct);
+
+//   $('#list-units').innerHTML = agg.unitsList.map((item, i) => `
+//     <div class="bar-row">
+//       <div class="bar-rank">${i + 1}</div>
+
+//       <div class="bar-name-wrap">
+//         <div class="bar-fill" style="width:${(item.qty / total * 100).toFixed(1)}%"></div>
+
+//         <div class="bar-name" title="${escapeHtml(item.name)}">
+//           ${escapeHtml(item.name)}
+//         </div>
+//       </div>
+
+//       <div class="bar-value">${fmtInt(item.qty)} шт</div>
+//       <div class="bar-pct">${fmtPct(item.pct)}</div>
+//     </div>
+//   `).join('');
+// }
+
+function renderUnitsList(rows) {
+  const agg = aggregate(rows, 'all');
+  const maxQty = agg.unitsList[0]?.qty || 1; // для ширины полосы (относительно лидера)
+  const totalQty = agg.unitsList.reduce((s, x) => s + x.qty, 0) || 1;
+  let runningPct = 0;      // накопление до порога 80%
+  let thresholdIndex = -1; // строка, на которой достигли ≥ 80%
+  $('#list-units').innerHTML = agg.unitsList.map((item, i) => {
+    const itemPct = item.qty / totalQty * 100; // доля этой строки
+    if (thresholdIndex < 0) {
+      runningPct += itemPct;
+      if (runningPct >= 80) {
+        thresholdIndex = i;
+      }
+    }
+    const thresholdClass = i === thresholdIndex ? ' bar-row--threshold' : '';
+    return `
+      <div class="bar-row${thresholdClass}">
+        <div class="bar-rank">${i + 1}</div>
+        <div class="bar-name-wrap">
+          <div class="bar-fill" style="width:${(item.qty / maxQty * 100).toFixed(1)}%"></div>
+          <div class="bar-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+        </div>
+        <div class="bar-value">${fmtInt(item.qty)} шт</div>
+        <div class="bar-pct">${fmtPct(item.pct)}</div>
+      </div>
+    `;
+  }).join('');
+  const fullPct = agg.unitsList.reduce((s, x) => s + x.qty / totalQty * 100, 0);
+  console.log('Накопленная сумма до порога:', runningPct.toFixed(1) + '%');
+  console.log('Полная сумма всех позиций:', fullPct.toFixed(1) + '%'); // всегда ~100%
+  console.log('Пороговый элемент:', thresholdIndex >= 0 ? agg.unitsList[thresholdIndex].name : 'не достигнут');
+}
+
+
+
+function renderRevenueList(rows, scope) {
+  const agg = aggregate(rows, scope);
+  const max = agg.revenueList[0]?.sum || 1;
+  $('#list-revenue').innerHTML = agg.revenueList.map((item, i) => `
+    <div class="bar-row">
+      <div class="bar-rank">${i + 1}</div>
+      <div class="bar-name-wrap">
+        <div class="bar-fill" style="width:${(item.sum / max * 100).toFixed(1)}%"></div>
+        <div class="bar-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+      </div>
+      <div class="bar-value">${fmtMoney(item.sum)}</div>
+      <div class="bar-pct">${fmtPct(item.pct)}</div>
+    </div>
+  `).join('');
+}
+
+
+
+function renderStatuses(rows) {
+  const statuses = aggregateStatuses(rows);
+  $('#status-body').innerHTML = statuses.map((s, i) => `
+    <tr>
+      <td class="status-name">
+        <span class="status-dot" style="background:${STATUS_COLORS[i % STATUS_COLORS.length]}"></span>
+        ${escapeHtml(s.status)}
+      </td>
+      <td class="num">${fmtInt(s.count)}</td>
+      <td class="num">
+        <div class="pct-cell">
+          <span>${fmtPct(s.pct)}</span>
+          <div class="pct-track"><div class="pct-fill" style="width:${s.pct.toFixed(1)}%; background:${STATUS_COLORS[i % STATUS_COLORS.length]}"></div></div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderReturnsList(rows) {
+  const agg = aggregateReturns(rows);
+  const wrap = $('#returns-wrap');
+
+  if (agg.list.length === 0) {
+    wrap.innerHTML = `<div class="empty-note">В этом отчёте возвратов и невыкупов не найдено.</div>`;
+    $('#returns-meta').textContent = '';
+    return;
+  }
+
+  $('#returns-meta').textContent = `${fmtInt(agg.returnedOrderCount)} заказов · ${fmtInt(agg.totalReturnedUnits)} единиц товара`;
+
+  const max = agg.list[0]?.qty || 1;
+  wrap.innerHTML = `
+    <div class="bar-header">
+      <span>#</span><span>Товар</span><span>Кол-во</span><span>Доля</span>
+    </div>
+    <div class="bar-list returns" id="list-returns">
+      ${agg.list.map((item, i) => `
+        <div class="bar-row">
+          <div class="bar-rank">${i + 1}</div>
+          <div class="bar-name-wrap">
+            <div class="bar-fill" style="width:${(item.qty / max * 100).toFixed(1)}%"></div>
+            <div class="bar-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+          </div>
+          <div class="bar-value">${fmtInt(item.qty)} шт</div>
+          <div class="bar-pct">${fmtPct(item.pct)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderAll(rows) {
+  renderSummary(rows);
+  renderUnitsList(rows);
+  renderRevenueList(rows, 'all');
+  renderStatuses(rows);
+  renderReturnsList(rows);
+
+  const orderStats = getOrderStats(rows);
+  $('#hero-meta').innerHTML = `<b>${fmtInt(orderStats.orderCount)}</b> заказов · <b>${rows.length}</b> строк товаров`;
+  $('#footer-count').textContent = `Обработано строк: ${rows.length}`;
+
+  $('#report').classList.add('show');
+}
+
+function showError(msg) {
+  const box = $('#error-box');
+  box.textContent = msg;
+  box.classList.add('show');
+}
+
+function clearError() {
+  $('#error-box').classList.remove('show');
+  $('#error-box').textContent = '';
+}
+
+function handleFile(file) {
+  clearError();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellText: true });
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+
+      const rows = parseWorkbook(matrix);
+      workbookRows = rows;
+
+      $('#file-name').textContent = file.name;
+      $('#file-row').classList.add('show');
+      $('#dropzone').style.display = 'none';
+
+      renderAll(rows);
+    } catch (err) {
+      showError('Ошибка обработки файла: ' + err.message);
+      $('#report').classList.remove('show');
+    }
+  };
+  reader.onerror = () => showError('Не удалось прочитать файл.');
+  reader.readAsArrayBuffer(file);
+}
+
+// --- Event wiring ---
+const dropzone = $('#dropzone');
+const fileInput = $('#file-input');
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag');
+  });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+  });
+});
+dropzone.addEventListener('drop', (e) => {
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+$('#clear-btn').addEventListener('click', resetAll);
+$('#reset-btn').addEventListener('click', resetAll);
+$('#print-btn').addEventListener('click', () => window.print());
+
+function resetAll() {
+  workbookRows = null;
+  fileInput.value = '';
+  $('#file-row').classList.remove('show');
+  $('#dropzone').style.display = 'block';
+  $('#report').classList.remove('show');
+  $('#hero-meta').textContent = 'Загрузите файл, чтобы увидеть сводку';
+  clearError();
+}
+
+document.querySelectorAll('.scope-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!workbookRows) return;
+    const group = btn.closest('.scope-toggle');
+    group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRevenueList(workbookRows, btn.dataset.scope);
+  });
+});
+</script>
+</body>
+</html>
